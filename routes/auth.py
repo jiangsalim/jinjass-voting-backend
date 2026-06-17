@@ -1,9 +1,27 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from models import db, Teacher, SystemSettings
+from utils.decorators import admin_required
+import jwt
+from datetime import datetime, timedelta
+from flask import current_app
 
 auth_bp = Blueprint('auth', __name__)
+
+def create_token(teacher_id, is_admin):
+    payload = {
+        'teacher_id': teacher_id,
+        'is_admin': is_admin,
+        'exp': datetime.utcnow() + timedelta(days=7)
+    }
+    return jwt.encode(payload, current_app.config['JWT_SECRET'], algorithm='HS256')
+
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, current_app.config['JWT_SECRET'], algorithms=['HS256'])
+        return payload
+    except:
+        return None
 
 @auth_bp.route('/api/auth/login', methods=['POST'])
 def login():
@@ -25,10 +43,11 @@ def login():
         if settings and not settings.voting_open:
             return jsonify({'error': 'Voting is currently closed. Please contact the administrator.'}), 403
 
-    login_user(teacher)
+    token = create_token(teacher.id, teacher.is_admin)
     
     return jsonify({
         'message': 'Login successful',
+        'token': token,
         'user': {
             'id': teacher.id,
             'username': teacher.username,
@@ -36,19 +55,26 @@ def login():
         }
     })
 
-@auth_bp.route('/api/auth/logout', methods=['POST'])
-@login_required
-def logout():
-    logout_user()
-    return jsonify({'message': 'Logged out successfully'})
-
 @auth_bp.route('/api/auth/me', methods=['GET'])
-@login_required
 def get_current_user():
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'No token provided'}), 401
+    
+    token = auth_header.split(' ')[1]
+    payload = verify_token(token)
+    
+    if not payload:
+        return jsonify({'error': 'Invalid or expired token'}), 401
+    
+    teacher = Teacher.query.get(payload['teacher_id'])
+    if not teacher:
+        return jsonify({'error': 'User not found'}), 401
+    
     return jsonify({
         'user': {
-            'id': current_user.id,
-            'username': current_user.username,
-            'is_admin': current_user.is_admin
+            'id': teacher.id,
+            'username': teacher.username,
+            'is_admin': teacher.is_admin
         }
     })
