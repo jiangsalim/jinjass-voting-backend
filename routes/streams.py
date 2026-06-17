@@ -1,31 +1,24 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
-from models import db, Stream, Class
-from utils.decorators import admin_required
+from models import db, Stream
+from utils.decorators import token_required, admin_required
 
 streams_bp = Blueprint('streams', __name__)
 
 @streams_bp.route('/api/streams', methods=['GET'])
-@login_required
-def get_streams():
+@token_required
+def get_streams(teacher):
     class_id = request.args.get('class_id')
     if not class_id:
         return jsonify({'error': 'class_id is required'}), 400
 
     streams = Stream.query.filter_by(class_id=class_id).all()
     return jsonify({
-        'streams': [{
-            'id': s.id,
-            'name': s.name,
-            'class_id': s.class_id,
-            'total_students': s.total_students
-        } for s in streams]
+        'streams': [{'id': s.id, 'name': s.name, 'class_id': s.class_id, 'total_students': s.total_students} for s in streams]
     })
 
 @streams_bp.route('/api/streams', methods=['POST'])
-@login_required
 @admin_required
-def create_stream():
+def create_stream(teacher):
     data = request.get_json()
     name = data.get('name')
     class_id = data.get('class_id')
@@ -40,18 +33,12 @@ def create_stream():
 
     return jsonify({
         'message': 'Stream created',
-        'stream': {
-            'id': stream.id,
-            'name': stream.name,
-            'class_id': stream.class_id,
-            'total_students': stream.total_students
-        }
+        'stream': {'id': stream.id, 'name': stream.name, 'class_id': stream.class_id, 'total_students': stream.total_students}
     }), 201
 
 @streams_bp.route('/api/streams/<int:stream_id>', methods=['DELETE'])
-@login_required
 @admin_required
-def delete_stream(stream_id):
+def delete_stream(teacher, stream_id):
     stream = Stream.query.get_or_404(stream_id)
     db.session.delete(stream)
     db.session.commit()

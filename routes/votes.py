@@ -1,23 +1,23 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required, current_user
 from models import db, Stream, VoteSubmission, VoteTally, Class
-from utils.decorators import voting_open_required
+from utils.decorators import token_required, voting_open_required, admin_required
 from utils.vote_utils import validate_votes, create_notification
 
 votes_bp = Blueprint('votes', __name__)
 
 @votes_bp.route('/api/votes/available-streams', methods=['GET'])
-@login_required
+@token_required
 @voting_open_required
-def get_available_streams():
+def get_available_streams(teacher):
+    if teacher.is_admin:
+        return jsonify({'error': 'Admin cannot access this endpoint'}), 403
+    
     class_id = request.args.get('class_id')
     if not class_id:
         return jsonify({'error': 'class_id is required'}), 400
 
-    # Get all submitted stream IDs
     submitted_ids = [s.stream_id for s in VoteSubmission.query.all()]
     
-    # Get streams for this class that are NOT submitted
     available = Stream.query.filter_by(class_id=class_id)\
                             .filter(~Stream.id.in_(submitted_ids if submitted_ids else [0]))\
                             .all()
@@ -32,27 +32,25 @@ def get_available_streams():
     })
 
 @votes_bp.route('/api/votes/submit', methods=['POST'])
-@login_required
+@token_required
 @voting_open_required
-def submit_votes():
-    if current_user.is_admin:
+def submit_votes(teacher):
+    if teacher.is_admin:
         return jsonify({'error': 'Admin cannot submit votes'}), 403
 
     data = request.get_json()
     stream_id = data.get('stream_id')
-    votes = data.get('votes')  # { candidate_id: vote_count, ... }
+    votes = data.get('votes')
 
     if not stream_id or not votes:
         return jsonify({'error': 'stream_id and votes are required'}), 400
 
-    # Check if stream already submitted
     existing = VoteSubmission.query.filter_by(stream_id=stream_id).first()
     if existing:
         return jsonify({'error': 'Votes already submitted for this stream'}), 400
 
     stream = Stream.query.get_or_404(stream_id)
 
-    # Validate votes (total per position must not exceed student count)
     is_valid, problem_position, attempted_total = validate_votes(stream, votes)
     if not is_valid:
         create_notification(stream, problem_position, attempted_total)
@@ -61,15 +59,13 @@ def submit_votes():
                      f'Entered: {attempted_total}, Maximum allowed: {stream.total_students}'
         }), 400
 
-    # Create submission
     submission = VoteSubmission(
         stream_id=stream_id,
-        teacher_id=current_user.id
+        teacher_id=teacher.id
     )
     db.session.add(submission)
     db.session.flush()
 
-    # Save tallies
     for candidate_id, vote_count in votes.items():
         tally = VoteTally(
             submission_id=submission.id,
@@ -91,8 +87,8 @@ def submit_votes():
     }), 201
 
 @votes_bp.route('/api/votes/submissions', methods=['GET'])
-@login_required
-def get_submissions():
+@token_required
+def get_submissions(teacher):
     submissions = VoteSubmission.query.order_by(VoteSubmission.submitted_at.desc()).all()
     result = []
     for s in submissions:

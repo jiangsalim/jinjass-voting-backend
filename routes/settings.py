@@ -1,15 +1,13 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
 from models import db, SystemSettings, Election
-from utils.decorators import admin_required
+from utils.decorators import token_required, admin_required
 from datetime import datetime
-from utils.vote_utils import calculate_winners
 
 settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/api/settings', methods=['GET'])
-@login_required
-def get_settings():
+@token_required
+def get_settings(teacher):
     settings = SystemSettings.query.first()
     if not settings:
         settings = SystemSettings(voting_open=False)
@@ -33,9 +31,8 @@ def get_settings():
     })
 
 @settings_bp.route('/api/settings/toggle-voting', methods=['POST'])
-@login_required
 @admin_required
-def toggle_voting():
+def toggle_voting(teacher):
     settings = SystemSettings.query.first()
     if not settings:
         settings = SystemSettings(voting_open=False)
@@ -44,14 +41,12 @@ def toggle_voting():
 
     settings.voting_open = not settings.voting_open
 
-    # If closing voting, mark election as closed
     if not settings.voting_open and settings.current_election_id:
         election = Election.query.get(settings.current_election_id)
         if election and election.status == 'active':
             election.status = 'closed'
             election.closed_at = datetime.utcnow()
     
-    # If opening voting, mark election as active
     if settings.voting_open and settings.current_election_id:
         election = Election.query.get(settings.current_election_id)
         if election:
@@ -66,9 +61,8 @@ def toggle_voting():
     })
 
 @settings_bp.route('/api/settings/display-type', methods=['PUT'])
-@login_required
 @admin_required
-def update_display_type():
+def update_display_type(teacher):
     data = request.get_json()
     display_type = data.get('display_type')
 
@@ -86,9 +80,8 @@ def update_display_type():
     return jsonify({'message': 'Display type updated', 'display_type': display_type})
 
 @settings_bp.route('/api/settings/current-election', methods=['PUT'])
-@login_required
 @admin_required
-def set_current_election():
+def set_current_election(teacher):
     data = request.get_json()
     election_id = data.get('election_id')
 
@@ -97,13 +90,11 @@ def set_current_election():
         settings = SystemSettings()
         db.session.add(settings)
 
-    # Reset old active election
     if settings.current_election_id:
         old_election = Election.query.get(settings.current_election_id)
         if old_election:
             old_election.status = 'closed'
 
-    # Set new active election
     settings.current_election_id = election_id
     if election_id:
         election = Election.query.get(election_id)

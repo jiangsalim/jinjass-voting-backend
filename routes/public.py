@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from models import SystemSettings, Election, Position
+from models import SystemSettings, Election
 from utils.vote_utils import calculate_winners
 
 public_bp = Blueprint('public', __name__)

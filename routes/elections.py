@@ -1,14 +1,13 @@
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
-from models import db, Election, SystemSettings
-from utils.decorators import admin_required
+from models import db, Election
+from utils.decorators import token_required, admin_required
 from datetime import datetime
 
 elections_bp = Blueprint('elections', __name__)
 
 @elections_bp.route('/api/elections', methods=['GET'])
-@login_required
-def get_elections():
+@token_required
+def get_elections(teacher):
     elections = Election.query.order_by(Election.created_at.desc()).all()
     return jsonify({
         'elections': [{
@@ -22,9 +21,8 @@ def get_elections():
     })
 
 @elections_bp.route('/api/elections', methods=['POST'])
-@login_required
 @admin_required
-def create_election():
+def create_election(teacher):
     data = request.get_json()
     title = data.get('title')
     year = data.get('year')
@@ -38,18 +36,12 @@ def create_election():
 
     return jsonify({
         'message': 'Election created',
-        'election': {
-            'id': election.id,
-            'title': election.title,
-            'year': election.year,
-            'status': election.status
-        }
+        'election': {'id': election.id, 'title': election.title, 'year': election.year, 'status': election.status}
     }), 201
 
 @elections_bp.route('/api/elections/<int:election_id>', methods=['PUT'])
-@login_required
 @admin_required
-def update_election(election_id):
+def update_election(teacher, election_id):
     election = Election.query.get_or_404(election_id)
     data = request.get_json()
 
@@ -66,10 +58,10 @@ def update_election(election_id):
 
     db.session.commit()
     return jsonify({'message': 'Election updated'})
+
 @elections_bp.route('/api/elections/<int:election_id>', methods=['DELETE'])
-@login_required
 @admin_required
-def delete_election(election_id):
+def delete_election(teacher, election_id):
     election = Election.query.get_or_404(election_id)
     db.session.delete(election)
     db.session.commit()

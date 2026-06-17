@@ -1,18 +1,17 @@
 from flask import Blueprint, request, jsonify, send_file
-from flask_login import login_required
-from models import db, Election, VoteSubmission, VoteTally, Candidate, Position, SystemSettings
-from utils.decorators import admin_required
+from models import Election
+from utils.decorators import token_required, admin_required
 from utils.vote_utils import calculate_winners
 from utils.exports import export_excel, export_pdf
-import io
-from datetime import datetime
 
 results_bp = Blueprint('results', __name__)
 
 @results_bp.route('/api/results', methods=['GET'])
-@login_required
-@admin_required
-def get_results():
+@token_required
+def get_results(teacher):
+    if not teacher.is_admin:
+        return jsonify({'error': 'Admin access required'}), 403
+        
     election_id = request.args.get('election_id')
     if not election_id:
         return jsonify({'error': 'election_id is required'}), 400
@@ -31,11 +30,10 @@ def get_results():
     })
 
 @results_bp.route('/api/results/export', methods=['GET'])
-@login_required
 @admin_required
-def export_results():
+def export_results(teacher):
     election_id = request.args.get('election_id')
-    format_type = request.args.get('format', 'excel')  # 'excel' or 'pdf'
+    format_type = request.args.get('format', 'excel')
 
     if not election_id:
         return jsonify({'error': 'election_id is required'}), 400
