@@ -2,14 +2,19 @@ from flask import Flask
 from flask_cors import CORS
 from flask_login import LoginManager
 from config import Config
-from models import db, Teacher
+from models import db, Teacher, SystemSettings
+from werkzeug.security import generate_password_hash
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
     
     # Enable CORS for frontend
-    CORS(app, supports_credentials=True, origins=['http://localhost:3000', 'http://10.115.117.13:3000'], allow_headers=['Content-Type', 'Authorization'])
+    CORS(app, supports_credentials=True, origins=[
+        'http://localhost:3000',
+        'http://10.115.117.13:3000',
+        'https://jinjass-voting-frontend.vercel.app'
+    ], allow_headers=['Content-Type', 'Authorization'])
     
     # Initialize database
     db.init_app(app)
@@ -53,9 +58,29 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(public_bp)
     
-    # Create tables
+    # Create tables and default data
     with app.app_context():
         db.create_all()
+        
+        # Create default admin if not exists
+        admin = Teacher.query.filter_by(username='admin').first()
+        if not admin:
+            admin = Teacher(
+                username='admin',
+                password_hash=generate_password_hash('admin123'),
+                is_admin=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print('Default admin created: admin / admin123')
+        
+        # Create default settings if not exists
+        settings = SystemSettings.query.first()
+        if not settings:
+            settings = SystemSettings(voting_open=False)
+            db.session.add(settings)
+            db.session.commit()
+            print('Default settings created')
     
     return app
 
