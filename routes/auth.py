@@ -1,27 +1,9 @@
 from flask import Blueprint, request, jsonify
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import check_password_hash
 from models import db, Teacher, SystemSettings
-from utils.decorators import admin_required
-import jwt
-from datetime import datetime, timedelta
-from flask import current_app
+from utils.token_utils import create_token, verify_token
 
 auth_bp = Blueprint('auth', __name__)
-
-def create_token(teacher_id, is_admin):
-    payload = {
-        'teacher_id': teacher_id,
-        'is_admin': is_admin,
-        'exp': datetime.utcnow() + timedelta(days=7)
-    }
-    return jwt.encode(payload, current_app.config['JWT_SECRET'], algorithm='HS256')
-
-def verify_token(token):
-    try:
-        payload = jwt.decode(token, current_app.config['JWT_SECRET'], algorithms=['HS256'])
-        return payload
-    except:
-        return None
 
 @auth_bp.route('/api/auth/login', methods=['POST'])
 def login():
@@ -37,7 +19,6 @@ def login():
     if not teacher or not check_password_hash(teacher.password_hash, password):
         return jsonify({'error': 'Invalid username or password'}), 401
 
-    # Check if voting is closed for non-admin
     if not teacher.is_admin:
         settings = SystemSettings.query.first()
         if settings and not settings.voting_open:

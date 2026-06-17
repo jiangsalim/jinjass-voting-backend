@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import request, jsonify
-from routes.auth import verify_token
+from utils.token_utils import verify_token
 from models import Teacher, SystemSettings
 
 def token_required(f):
