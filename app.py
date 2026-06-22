@@ -45,7 +45,8 @@ def create_app():
     from routes.notifications import notifications_bp
     from routes.settings import settings_bp
     from routes.public import public_bp
-    
+    from routes.profile import profile_bp
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(elections_bp)
     app.register_blueprint(classes_bp)
@@ -58,6 +59,7 @@ def create_app():
     app.register_blueprint(notifications_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(public_bp)
+    app.register_blueprint(profile_bp)
     
     # Create tables and default data
     with app.app_context():
