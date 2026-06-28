@@ -14,6 +14,7 @@ def create_app():
     CORS(app, supports_credentials=True, origins=[
         'http://localhost:3000',
         'http://10.115.117.13:3000',
+        'https://jinjass-voting-portal.vercel.app',
         frontend_url
     ], allow_headers=['Content-Type', 'Authorization'])
     
